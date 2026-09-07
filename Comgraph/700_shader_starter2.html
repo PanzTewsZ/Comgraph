@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fragment Shader Starter</title>
+  <style>
+    html, body { height: 100%; margin: 0; }
+    canvas { display: block; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+<script>
+  // Scene / Camera / Renderer
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x111111);
+
+  const camera = new THREE.PerspectiveCamera(
+    60,
+    innerWidth / innerHeight,
+    0.1,
+    100
+  );
+  camera.position.set(0, 0, 2.5);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  document.body.appendChild(renderer.domElement);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+  // ค่าที่ส่งจาก JavaScript เข้า shader
+  const uniforms = {
+    uTime: { value: 0.0 },
+    uLightDir: { value: new THREE.Vector3(0.4, 1.0, 0.8).normalize() },
+    uTexture: { value: new THREE.TextureLoader().load('https://threejs.org/examples/textures/uv_grid_opengl.jpg') }
+  };
+
+  const vertexShader = `
+    uniform float uTime;
+    varying vec2 vUv;
+    varying vec3 vNormal;
+    varying vec3 vPosW;
+
+    void main() {
+      vUv = uv;
+      vNormal = normal;
+      vPosW = position;
+
+      vec3 pos = position;
+
+      // เริ่มเขียน vertex shader ที่นี่
+      pos.z += sin(pos.x * 5.0 + uTime) * 0.1;
+
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+    }
+  `;
+
+  const fragmentShader = `
+    precision mediump float;
+
+    uniform float uTime;
+    uniform sampler2D uTexture;
+    uniform vec3 uLightDir;
+    varying vec3 vNormal;
+    varying vec2 vUv;
+    varying vec3 vPosW;
+
+    void main() {
+      // เริ่มเขียน fragment shader ที่นี่
+      //vec3 color = vec3(vUv, 0.5);
+      //vec3 color = vec3(1.0, 0.5, 0.0);
+      vec3 N = normalize(vNormal);
+      vec3 L = normalize(uLightDir);
+
+      //Diffuse
+      float diffuse = max(dot(N,L),0.0);
+
+      //Amdient
+      float ambient = 0.3;
+
+      //Lambert
+      float level = 10.0;
+      diffuse = floor(diffuse * level) / level;
+
+      //Phong
+      vec3 R = reflect(-L, N);
+      vec3 V = normalize(cameraPosition - vPosW);
+      float specular = pow(max(dot(N, L), 0.0), 64.0) * 0.9;
+      vec3 baseColor = vec3(1.0, 0.5, 0.0);
+      //specular = floor(diffuse * 4.0) /  4.0;
+      //specular = step(0.2, specular);
+      specular = smoothstep(0.4, 0.8, specular);
+
+      //vec3 baseColor = texture2D(uTexture, vUv).xyz;
+      vec3 color = baseColor * (diffuse + ambient) + vec3(specular);
+      gl_FragColor = vec4(color, 1.0);
+    }
+  `;
+
+  // ใช้ segment หลายช่อง เพื่อให้ vertex shader ดัดรูปทรงได้ละเอียด
+
+  //const geometry = new THREE.PlaneBufferGeometry(1.5, 1.5, 32, 32);
+  const geometry = new THREE.SphereBufferGeometry(1.0, 32, 32);
+  const material = new THREE.ShaderMaterial({
+    vertexShader,
+    fragmentShader,
+    uniforms,
+    side: THREE.DoubleSide
+  });
+
+  const mesh = new THREE.Mesh(geometry, material);
+  scene.add(mesh);
+
+  addEventListener('resize', () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  });
+
+  function animate(time) {
+    uniforms.uTime.value = time * 0.001;
+    controls.update();
+    renderer.render(scene, camera);
+    requestAnimationFrame(animate);
+  }
+
+  requestAnimationFrame(animate);
+</script>
+</body>
+</html>
