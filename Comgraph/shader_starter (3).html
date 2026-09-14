@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Shader Starter • three.js r128</title>
+  <style>
+    html, body { height: 100%; margin: 0; }
+    canvas { display: block; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+<script>
+  // Scene / Camera / Renderer
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xFFFFFF); //เปลี่ยนสีพื้นหลัง
+
+  const camera = new THREE.PerspectiveCamera(
+    60,
+    innerWidth / innerHeight,
+    0.1,
+    100
+  );
+  camera.position.set(0, 0, 2.5);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  document.body.appendChild(renderer.domElement);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+  // ค่าที่ส่งจาก JavaScript เข้า shader
+   const uniforms = {
+    uTime: { value: 0.0 },
+    uLightDir: { value: new THREE.Vector3(0.4, 1.0, 0.8).normalize() },
+    uTexture: { value: new THREE.TextureLoader().load('https://threejs.org/examples/textures/uv_grid_opengl.jpg') }
+  };
+
+  const vertexShader = `
+    uniform float uTime;
+
+    varying vec2 vUv;
+    varying vec3 vNormal;
+
+    void main() {
+      vUv = uv;
+      vNormal = normal;
+      vec3 pos = position;
+
+      // เริ่มเขียน vertex shader ที่นี่
+      pos.z += sin(pos.x * 5.0 + uTime) * 0.2;
+
+      //gl_Position = vec4(pos, 1.0);
+      //gl_Position = viewMatrix * modelMatrix * vec4(pos, 1.0);
+      gl_Position = projectionMatrix * (viewMatrix * (modelMatrix * vec4(pos, 1.0)));
+      //gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+    }
+  `;
+
+  const fragmentShader = `
+    precision mediump float;
+
+    uniform float uTime;
+    uniform sampler2D uTexture;
+    uniform vec3 uLightDir;
+    varying vec2 vUv;
+    varying vec3 vNormal;
+
+    void main() {
+      // เริ่มเขียน fragment shader ที่นี่
+      vec3 color = texture2D(uTexture, vUv).rgb;
+
+      //lambert 
+      vec3 N = normalize(vNormal);
+      vec3 L = normalize(uLightDir);
+      float diffuse = max(dot(N, L), 0.0);
+      //color *= diffuse;
+
+      //ambient
+      float ambient = 0.5;
+
+      //toon shade
+      float level = 3.0;
+      //diffuse = floor(diffuse * level) / level;
+      diffuse = smoothstep(0.15, 0.2, diffuse);
+
+      color = color * (diffuse + ambient);
+
+      gl_FragColor = vec4(color, 1.0);
+    }
+  `;
+  const outlineVertexShader = `
+    uniform float uTime;
+
+    varying vec2 vUv;
+    varying vec3 vNormal;
+
+    void main() {
+      vUv = uv;
+      vNormal = normal;
+      vec3 pos = position;
+
+      // เริ่มเขียน vertex shader ที่นี่
+      pos.z += sin(pos.x * 5.0 + uTime) * 0.2;
+      pos += normal * 0.02;
+      
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+    }
+  `;
+
+  const outlineFragmentShader = `
+    precision mediump float;
+
+    uniform float uTime;
+    uniform sampler2D uTexture;
+    uniform vec3 uLightDir;
+    varying vec2 vUv;
+    varying vec3 vNormal;
+
+    void main() {
+      gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+    }
+  `;
+
+  // ใช้ segment หลายช่อง เพื่อให้ vertex shader ดัดรูปทรงได้ละเอียด
+  const geometry = new THREE.TorusKnotBufferGeometry(0.5, 0.2, 128, 32); //Knot แปลว่าบิด
+  const material = new THREE.ShaderMaterial({
+    vertexShader,                             
+    fragmentShader,
+    uniforms,
+    side: THREE.DoubleSide
+  });
+
+  const outlineMaterial = new THREE.ShaderMaterial({
+    vertexShader: outlineVertexShader,
+    fragmentShader: outlineFragmentShader,
+    uniforms,
+    side: THREE.BackSide
+  });
+
+  const mesh = new THREE.Mesh(geometry, material);
+  scene.add(mesh);
+  mesh.position.set(1, 0, 0);
+
+  const outlineMesh = new THREE.Mesh(geometry, outlineMaterial);
+  scene.add(outlineMesh);
+  outlineMesh.position.set(1, 0, 0);
+  outlineMesh.scale.multiplyScalar(1.05);
+
+
+            
+  addEventListener('resize', () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  });
+
+  function animate(time) {
+    uniforms.uTime.value = time * 0.001;
+    controls.update();
+    renderer.render(scene, camera);
+    requestAnimationFrame(animate);
+  }
+
+  requestAnimationFrame(animate);
+</script>
+</body>
+</html>
