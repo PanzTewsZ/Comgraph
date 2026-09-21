@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Animations</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- core three.js -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/EXRLoader.js"></script>
+
+    <script>
+
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true; // Shadow
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        const scene = new THREE.Scene();
+
+        
+        const camera = new THREE.PerspectiveCamera(
+            75,
+            window.innerWidth / window.innerHeight,
+            0.1,
+            1000
+        );
+        camera.position.set(0, 2, 5);
+        camera.lookAt(0, 0, 0);
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+        const abmientLight = new THREE.AmbientLight(0x404040, 1); // soft white light
+        scene.add(abmientLight);
+
+        
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+        directionalLight.position.set(10, 10, 10);
+        directionalLight.castShadow = true;
+        scene.add(directionalLight);
+
+
+        
+        const exrSkyboxUrl = 'https://dl.polyhaven.org/file/ph-assets/HDRIs/exr/1k/kloofendal_48d_partly_cloudy_puresky_1k.exr';
+        const pmremGenerator = new THREE.PMREMGenerator(renderer);
+        pmremGenerator.compileEquirectangularShader();
+
+        new THREE.EXRLoader()
+            .setDataType(THREE.UnsignedByteType)
+            .load(exrSkyboxUrl, (texture) => {
+                const skybox = pmremGenerator.fromEquirectangular(texture).texture;
+                scene.background = skybox;
+                scene.environment = skybox;
+
+                texture.dispose();
+                pmremGenerator.dispose();
+            }, undefined, (error) => {
+                console.error('Unable to load EXR skybox:', error);
+            });
+
+
+        //load glb และใช้ pbr material
+        const clock = new THREE.Clock();
+        let mixer;
+        const loader = new THREE.GLTFLoader();
+        loader.load('https://panztewsz.github.io/Comgraph/Van10_10.glb', (gltf) => {
+            const model = gltf.scene;
+            model.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                }
+            });
+            model.position.set(0, 0, 1);
+            model.scale.set(3, 3, 3);
+            scene.add(model);
+            
+        });
+      
+
+        function animate(t) {
+            const delta = clock.getDelta();
+            if (mixer) mixer.update(delta);
+            
+            renderer.render(scene, camera);
+            requestAnimationFrame(animate);
+        }
+        animate(0);
+
+        window.addEventListener('keydown', (event) => {
+
+        });
+
+    </script>
+</body>
+
+</html>
